@@ -1,16 +1,23 @@
-from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
+#!/usr/bin/env python2.7
+
+import json
+import os
+import bleach
+import random
+import string
+import requests
+import httplib2
+
+from flask import Flask, render_template, make_response
+from flask import request, redirect, url_for, flash, jsonify
+from flask import session as login_session
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 from db_setup import Base, Category, Item, User
-from flask import session as login_session
-import random, string, requests
 
 from oauth2client.client import flow_from_clientsecrets
 from oauth2client.client import FlowExchangeError
-import httplib2
-import json
-import os
-from flask import make_response
+
 from PIL import Image
 
 # ORM database
@@ -22,7 +29,8 @@ session = DBSession()
 app = Flask(__name__)
 
 # Config and constants
-CLIENT_ID = json.loads(open('client_secrets.json', 'r').read())['web']['client_id']
+CLIENT_ID = json.loads(open('client_secrets.json',
+                            'r').read())['web']['client_id']
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
@@ -44,7 +52,8 @@ def showItemsJSON(category_name):
 @app.route('/catalog/<string:category_name>/<string:item_name>/JSON')
 def showItemJSON(category_name, item_name):
     category = session.query(Category).filter_by(name=category_name).one()
-    item = session.query(Item).filter_by(name=item_name, category=category).one()
+    item = session.query(Item).filter_by(name=item_name,
+                                         category=category).one()
     return jsonify(Item=[item.serialize])
 
 
@@ -56,23 +65,29 @@ def showItemJSON(category_name, item_name):
 def showCatalog():
     categories = session.query(Category).all()
     latest_items = session.query(Item).order_by(desc(Item.id)).limit(10)
-    return render_template('main.html', categories=categories, latest_items=latest_items)
+    return render_template('main.html',
+                           categories=categories,
+                           latest_items=latest_items)
 
 
-# Fetch items of a given category as well as the categories for the sidebar again and pass it to the category view.
+# Fetch items of a given category as well as the categories for the sidebar
+# again and pass it to the category view.
 @app.route('/catalog/<string:category_name>/items/')
 def showItems(category_name):
     categories = session.query(Category).all()
     category = session.query(Category).filter_by(name=category_name).one()
     items = session.query(Item).filter_by(category=category)
-    return render_template('category.html', categories=categories, category=category, items=items)
+    return render_template('category.html',
+                           categories=categories, category=category,
+                           items=items)
 
 
 # Fetch item information and creator information and pass it to the item view.
 @app.route('/catalog/<string:category_name>/<string:item_name>/')
 def showItem(category_name, item_name):
     category = session.query(Category).filter_by(name=category_name).one()
-    item = session.query(Item).filter_by(name=item_name, category=category).one()
+    item = session.query(Item).filter_by(name=item_name,
+                                         category=category).one()
     creator = getUserInfo(item.user_id)
     return render_template('item.html', item=item, creator=creator)
 
@@ -80,12 +95,14 @@ def showItem(category_name, item_name):
 # Create an anti-forgery state token and pass it to the login view.
 @app.route('/catalog/login/')
 def showLogin():
-    state = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in xrange(32))
+    state = ''.join(random.choice(string.ascii_uppercase + string.digits)
+                    for x in xrange(32))
     login_session['state'] = state
     return render_template('login.html', STATE=state)
 
 
-# Handle oauth requests and set up an outh flow to exchange an access token for credentials.
+# Handle oauth requests and set up an outh flow to exchange an access token
+# for credentials.
 @app.route('/gconnect', methods=['POST'])
 def gconnect():
     if request.args.get('state') != login_session['state']:
@@ -98,11 +115,13 @@ def gconnect():
         oauth_flow.redirect_uri = 'postmessage'
         credentials = oauth_flow.step2_exchange(code)
     except FlowExchangeError:
-        response = make_response(json.dumps('Failed to upgrade the authorization code.'), 401)
+        response = make_response(json.dumps("Failed to upgrade the "
+                                            "authorization code."), 401)
         response.headers['Content-Type'] = 'application/json'
         return response
     access_token = credentials.access_token
-    url = ('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=%s' % access_token)
+    url = ('https://www.googleapis.com/oauth2/v1/tokeninfo?access_token=%s'
+           % access_token)
     h = httplib2.Http()
     result = json.loads(h.request(url, 'GET')[1])
     if result.get('error') is not None:
@@ -111,13 +130,15 @@ def gconnect():
     gplus_id = credentials.id_token['sub']
     if result['user_id'] != gplus_id:
         response = make_response(
-            json.dumps("Token's user ID does not match the given User ID."), 401)
+            json.dumps("Token's user ID does not match the given User ID."),
+            401)
         response.headers['Content-Type'] = 'application/json'
         return response
     stored_credentials = login_session.get('credentials')
     stored_gplus_id = login_session.get('gplus_id')
     if stored_credentials is not None and gplus_id == stored_gplus_id:
-        response = make_response(json.dumps("Current user is already connected."), 200)
+        response = make_response(json.dumps("Current user is already "
+                                            "connected."), 200)
         response.headers['Content-Type'] = 'application/json'
 
     login_session['access_token'] = credentials.access_token
@@ -151,13 +172,15 @@ def gdisconnect():
     access_token = login_session.get('access_token')
     if access_token is None:
         print 'Access Token is None'
-        response = make_response(json.dumps('Current user not connected.'), 401)
+        response = make_response(json.dumps('Current user not connected.'),
+                                 401)
         response.headers['Content-Type'] = 'application/json'
         return response
     print 'In gdisconnect access token is %s', access_token
     print 'User name is: '
     print login_session['username']
-    url = 'https://accounts.google.com/o/oauth2/revoke?token=%s' % login_session['access_token']
+    url = "https://accounts.google.com/o/oauth2/revoke?token=%s" % (
+          login_session['access_token'])
     h = httplib2.Http()
     result = h.request(url, 'GET')[0]
     print 'result is '
@@ -181,14 +204,20 @@ def newItem(category_name):
     if 'username' not in login_session:
         return redirect('/login')
     if(request.method == 'POST'):
+        # Sanitize user input
+        name = bleach.clean(request.form['name'], tags=[], strip=True)
+        description = bleach.clean(request.form['description'],
+                                   tags=[], strip=True)
         # Very rudimentary csrf protection
         if not csrf_protect():
             return "CSRF detected"
         # If an image is attached, upload it to the server.
         file = request.files['image']
+        image = None
         if file:
-            image = upload_image(file, request.form['name'])
-        item = Item(name=request.form['name'], description=request.form['description'], category=category, user_id=login_session['user_id'], filename=image)
+            image = upload_image(file, name)
+        item = Item(name=name, description=description, category=category,
+                    user_id=login_session['user_id'], filename=image)
         session.add(item)
         session.commit()
         return(redirect(url_for('showItems', category_name=category_name)))
@@ -200,32 +229,44 @@ def newItem(category_name):
 def editItem(item_name):
     # Update a given item from the db.
     item = session.query(Item).filter_by(name=item_name).one()
+    # Is the current user logged in?
+    if 'username' not in login_session:
+        return redirect('/login')
     if(request.method == 'POST'):
+        # Sanitize user input
+        name = bleach.clean(request.form['name'], tags=[], strip=True)
+        description = bleach.clean(request.form['description'],
+                                   tags=[], strip=True)
         if not csrf_protect():
             return "CSRF detected"
         # If an image is attached, replace the current image with it.
         file = request.files['image']
         if file:
             delete_image(item.filename)
-            image = upload_image(file, request.form['name'])
+            image = upload_image(file, name)
             item.filename = image
         category = session.query(Category).get(request.form['category'])
-        item.name = request.form['name']
-        item.description = request.form['description']
+        item.name = name
+        item.description = description
         item.category = category
 
         session.add(item)
         session.commit()
-        return(redirect(url_for('showItems', category_name=item.category.name)))
+        return(redirect(url_for('showItems',
+                                category_name=item.category.name)))
     else:
         categories = session.query(Category).all()
-        return render_template('edititem.html', item=item, categories=categories)
+        return render_template('edititem.html', item=item,
+                               categories=categories)
 
 
 @app.route('/catalog/<string:item_name>/delete/', methods=["GET", "POST"])
 def deleteItem(item_name):
     # Delete a given item from the db.
     item = session.query(Item).filter_by(name=item_name).one()
+    # Is the current user logged in?
+    if 'username' not in login_session:
+        return redirect('/login')
     if(request.method == 'POST'):
         if not csrf_protect():
             return "CSRF detected"
@@ -243,32 +284,37 @@ def deleteItem(item_name):
 # HELPER FUNCTIONS
 def createUser(login_session):
     # Add a new user to the db.
-    newUser = User(name=login_session['username'], email = login_session['email'], picture = login_session['picture'])
+    newUser = User(name=login_session['username'],
+                   email=login_session['email'],
+                   picture=login_session['picture'])
     session.add(newUser)
     session.commit()
-    user = session.query(User).filter_by(email = login_session['email']).one()
+    user = session.query(User).filter_by(email=login_session['email']).one()
     return user.id
 
 
 def getUserID(email):
     # Exchange the user email for a user id from the db.
     try:
-        user = session.query(User).filter_by(email = email).one()
+        user = session.query(User).filter_by(email=email).one()
         return user.id
-    except:
+    except Exception:
         return None
 
 
 def getUserInfo(user_id):
     # Exhange the user id for user info from the db.
-    user = session.query(User).filter_by(id = user_id).one()
+    user = session.query(User).filter_by(id=user_id).one()
     return user
 
 
 def generate_csrf_token():
     # Generate a csrf token and store it in the session.
     if 'csrf_token' not in login_session:
-        login_session['csrf_token'] = ''.join(random.choice(string.ascii_uppercase + string.digits) for x in xrange(32))
+        login_session['csrf_token'] = ''.join(random.choice(
+                                              string.ascii_uppercase +
+                                              string.digits) for x
+                                              in xrange(32))
     return login_session['csrf_token']
 
 
@@ -283,10 +329,16 @@ def csrf_protect():
 
 def upload_image(file, item_name):
     # Upload an image to server.
-    # TODO: Check for file integrity and file type.
     ext = file.filename.split('.')[-1]
     filename = item_name+"."+ext
     f = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    # Check for file integrity and file type.
+    try:
+        img = Image.open(file)
+        img.verify()
+    except IOError, SyntaxError:
+        print "Bad file: %s" % filename
+        return None
     file.save(f)
     return filename
 
