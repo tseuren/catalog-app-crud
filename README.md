@@ -1,6 +1,8 @@
 # Catalog App with CRUD functionality and Google OAuth2 authentication.
 This is a simple CRUD App written in python using the flask framework, an SQLite db with sqlalchemy for ORM and Google OAuth2 for authentication and authorization.
 
+![scrot](https://raw.githubusercontent.com/tseuren/catalog-app-crud/master/scrot.png)
+
 ## Setup
 - Clone this repo and create an upload folder inside `static/`.
 
