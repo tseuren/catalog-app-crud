@@ -1,0 +1,74 @@
+body {
+    background-color: #E9E7E8
+}
+
+h1 {
+    font-weight: bold;
+    font-size: 1.5em
+}
+
+ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    color: #9D7F75
+}
+
+.jumbotron {
+    margin-top:2%;
+    background-color: #f3f2f2;
+    border: 2px solid #d1cfc5;
+}
+
+.navbar {
+    background-color: #620B2D;
+    color: #E9E7E8;
+}
+
+.navbar-brand {
+    font-size: 2.6em;
+    font-weight: bold;
+}
+
+.btn-success,
+.btn-success:hover,
+.btn-success:active {
+    background-color: #9D7F75;
+    border-color: #9D7F75;
+}
+
+.horizontal-divider {
+    border-left: 2px solid #620B2D;
+    height: 100%;
+    position: absolute;
+}
+
+.thumbnail {
+    height: 2em;
+    width: 2em;
+    margin-left: .5em;
+}
+
+.black {
+    color :#180004
+}
+
+.red {
+    color: #620B2D
+}
+
+.light-brown {
+    color: #D9B9A2
+}
+
+.brown {
+    color: #9D7F75
+}
+
+.whiteish {
+    color: #E9E7E8
+}
+
+a:link, a:visited, a:active, a:hover {
+    color: #9D7F75
+}
