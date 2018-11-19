@@ -29,7 +29,7 @@ session = DBSession()
 app = Flask(__name__)
 
 # Config and constants
-CLIENT_ID = json.loads(open('client_secret.json',
+CLIENT_ID = json.loads(open('client_secrets.json',
                             'r').read())['web']['client_id']
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
