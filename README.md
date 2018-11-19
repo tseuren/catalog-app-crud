@@ -21,7 +21,7 @@ This is a simple CRUD App written in python using the flask framework, an SQLite
 	`pipenv run python create_db_items.py`
 
 ## OAuth2
-The application looks for a `client_secret.json` file in the root of the project. Refer to [this](https://developers.google.com/api-client-library/python/auth/web-app) for more information on how to obtain OAuth2 credentials.
+The application looks for a `client_secrets.json` file in the root of the project. Refer to [this](https://developers.google.com/api-client-library/python/auth/web-app) for more information on how to obtain OAuth2 credentials.
 
 ## Running the application
 Simply run `application.py` in the virtualenv. The webserver will listen on `localhost:8000` by default.
