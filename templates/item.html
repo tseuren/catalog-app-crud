@@ -5,12 +5,14 @@
                     <div class="col">
                         <h1 class="red">{{item.name}}</h1>
                         {% if item.filename %}
-                            <img src="/static/uploads/{{item.filename}}">
+                            <img src="/static/uploads/{{item.filename}}" />
+                            <a href="{{url_for('deleteItemImage', item_name = item.name)}}">Delete Image</a>
                         {% endif %}
                         <p>{{item.description}}</p>
                         {% if 'username' in session and creator.id == session['user_id'] %}
-                        <a href="{{url_for('editItem', item_name = item.name)}}">Edit</a>
+                        <a href="{{url_for('editItem', item_name = item.name)}}">Edit</a> |
                         <a href="{{url_for('deleteItem', item_name = item.name)}}">Delete</a>
+
                         {% endif %}
                     </div>
                 </div>

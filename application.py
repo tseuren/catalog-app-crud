@@ -8,9 +8,17 @@ import string
 import requests
 import httplib2
 
-from flask import Flask, render_template, make_response
-from flask import request, redirect, url_for, flash, jsonify
-from flask import session as login_session
+from functools import wraps
+from flask import (Flask,
+                   render_template,
+                   make_response,
+                   request,
+                   redirect,
+                   url_for,
+                   flash,
+                   jsonify,
+                   session as login_session)
+
 from sqlalchemy import create_engine, desc
 from sqlalchemy.orm import sessionmaker
 from db_setup import Base, Category, Item, User
@@ -33,6 +41,18 @@ CLIENT_ID = json.loads(open('client_secrets.json',
                             'r').read())['web']['client_id']
 UPLOAD_FOLDER = 'static/uploads'
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+
+# DECORATORS
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'username' in login_session:
+            return f(*args, **kwargs)
+        else:
+            flash('You are not allowed to access there')
+            return redirect(url_for('showLogin'))
+    return decorated_function
 
 
 # JSON ENDPOINTS
@@ -198,11 +218,9 @@ def gdisconnect():
 
 # Insert a new item into the db.
 @app.route('/catalog/<string:category_name>/new/', methods=["GET", "POST"])
+@login_required
 def newItem(category_name):
     category = session.query(Category).filter_by(name=category_name).one()
-    # Is the current user logged in?
-    if 'username' not in login_session:
-        return redirect('/login')
     if(request.method == 'POST'):
         # Sanitize user input
         name = bleach.clean(request.form['name'], tags=[], strip=True)
@@ -212,37 +230,45 @@ def newItem(category_name):
         if not csrf_protect():
             return "CSRF detected"
         # If an image is attached, upload it to the server.
-        file = request.files['image']
-        image = None
-        if file:
+        if request.files['image']:
+            file = request.files['image']
             image = upload_image(file, name)
+        else:
+            image = None
         item = Item(name=name, description=description, category=category,
                     user_id=login_session['user_id'], filename=image)
         session.add(item)
         session.commit()
-        return(redirect(url_for('showItems', category_name=category_name)))
+        return(redirect(url_for('showItem',
+                                category_name=item.category.name,
+                                item_name=item.name)))
     else:
         return render_template('newitem.html', category=category)
 
 
 @app.route('/catalog/<string:item_name>/edit/', methods=["GET", "POST"])
+#@csrf_protected
+@login_required
 def editItem(item_name):
     # Update a given item from the db.
     item = session.query(Item).filter_by(name=item_name).one()
-    # Is the current user logged in?
-    if 'username' not in login_session:
-        return redirect('/login')
+    if not isUserOwner(item):
+        flash("You do not own this item.")
+        return redirect(url_for('showCatalog'))
+        
     if(request.method == 'POST'):
         # Sanitize user input
         name = bleach.clean(request.form['name'], tags=[], strip=True)
         description = bleach.clean(request.form['description'],
                                    tags=[], strip=True)
         if not csrf_protect():
-            return "CSRF detected"
+             return "CSRF detected"
+
         # If an image is attached, replace the current image with it.
-        file = request.files['image']
-        if file:
-            delete_image(item.filename)
+        if request.files['image']:
+            file = request.files['image']
+            if item.filename:
+                delete_image(item.filename)
             image = upload_image(file, name)
             item.filename = image
         category = session.query(Category).get(request.form['category'])
@@ -252,8 +278,9 @@ def editItem(item_name):
 
         session.add(item)
         session.commit()
-        return(redirect(url_for('showItems',
-                                category_name=item.category.name)))
+        return(redirect(url_for('showItem',
+                                category_name=item.category.name,
+                                item_name=item.name)))
     else:
         categories = session.query(Category).all()
         return render_template('edititem.html', item=item,
@@ -261,15 +288,18 @@ def editItem(item_name):
 
 
 @app.route('/catalog/<string:item_name>/delete/', methods=["GET", "POST"])
+@login_required
 def deleteItem(item_name):
     # Delete a given item from the db.
     item = session.query(Item).filter_by(name=item_name).one()
-    # Is the current user logged in?
-    if 'username' not in login_session:
-        return redirect('/login')
+    if not isUserOwner(item):
+        flash("You do not own this item.")
+        return redirect(url_for('showCatalog'))
+
     if(request.method == 'POST'):
         if not csrf_protect():
             return "CSRF detected"
+
         # If an image was attached to this item, delete it from the server.
         if item.filename:
             delete_image(item.filename)
@@ -279,6 +309,29 @@ def deleteItem(item_name):
         return(redirect(url_for('showItems', category_name=category_name)))
     else:
         return render_template('deleteitem.html', item=item)
+
+
+@app.route('/catalog/<string:item_name>/deleteImage/', methods=["GET", "POST"])
+@login_required
+def deleteItemImage(item_name):
+    # Delete a given item from the db.
+    item = session.query(Item).filter_by(name=item_name).one()
+    if not isUserOwner(item):
+        flash("You do not own this item.")
+        return redirect(url_for('showCatalog'))
+
+    if(request.method == 'POST'):
+        if not csrf_protect():
+            return "CSRF detected"
+
+        delete_image(item.filename)
+        item.filename = None
+        session.add(item)
+        session.commit()
+        category_name = item.category.name
+        return(redirect(url_for('showItem', category_name=category_name, item_name=item.name)))
+    else:
+        return render_template('deleteitemimage.html', item=item)
 
 
 # HELPER FUNCTIONS
@@ -308,6 +361,16 @@ def getUserInfo(user_id):
     return user
 
 
+def isUserOwner(item):
+    owner = session.query(Item).filter_by(
+                                          user_id=login_session['user_id'],
+                                          id=item.id
+                                          ).first()
+    if owner:
+        return True
+    return False
+
+
 def generate_csrf_token():
     # Generate a csrf token and store it in the session.
     if 'csrf_token' not in login_session:
@@ -329,11 +392,11 @@ def csrf_protect():
 
 def upload_image(file, item_name):
     # Upload an image to server.
-    ext = file.filename.split('.')[-1]
-    filename = item_name+"."+ext
-    f = os.path.join(app.config['UPLOAD_FOLDER'], filename)
     # Check for file integrity and file type.
     try:
+        ext = file.filename.split('.')[-1]
+        filename = item_name+"."+ext
+        f = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         img = Image.open(file)
         img.verify()
     except IOError, SyntaxError:
